@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>英文闪卡学习网站</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --bg-a: #f8fafc;
+      --bg-b: #eef2ff;
+      --warn-a: #fee2e2;
+      --warn-b: #ffedd5;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--bg-a), var(--bg-b));
+      transition: background-color 0.2s ease;
+      min-height: 100vh;
+    }
+
+    body.flash-warning-a {
+      background: var(--warn-a);
+    }
+
+    body.flash-warning-b {
+      background: var(--warn-b);
+    }
+
+    .perspective {
+      perspective: 1200px;
+    }
+
+    .flashcard {
+      transform-style: preserve-3d;
+      transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, translate 0.2s ease;
+      cursor: pointer;
+    }
+
+    .flashcard:hover {
+      translate: 0 -4px;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+    }
+
+    .flashcard.flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    .card-back {
+      transform: rotateY(180deg);
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #e2e8f0;
+      border-radius: 9999px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border-radius: 9999px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .flashcard,
+      body {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body class="text-slate-800">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <header class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-6">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">英文单词闪卡学习</h1>
+        <p class="mt-2 text-slate-600">支持单个添加、批量导入、翻转学习与倒计时提醒。</p>
+      </div>
+
+      <section class="w-full md:w-[320px] bg-white/90 backdrop-blur rounded-2xl shadow-md border border-slate-200 p-4">
+        <h2 class="text-lg font-semibold mb-3">学习倒计时</h2>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <label class="text-sm">
+            <span class="block mb-1 text-slate-600">分钟</span>
+            <input id="minutesInput" type="number" min="0" max="999" value="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </label>
+          <label class="text-sm">
+            <span class="block mb-1 text-slate-600">秒</span>
+            <input id="secondsInput" type="number" min="0" max="59" value="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </label>
+        </div>
+        <div id="timerDisplay" class="text-3xl font-bold text-center py-3 rounded-xl bg-indigo-50 text-indigo-700 mb-3">00:00</div>
+        <div class="flex gap-2">
+          <button id="startTimerBtn" class="flex-1 rounded-xl bg-indigo-600 text-white px-3 py-2 font-medium hover:bg-indigo-500 active:scale-[0.99] transition">开始</button>
+          <button id="pauseTimerBtn" class="flex-1 rounded-xl bg-amber-500 text-white px-3 py-2 font-medium hover:bg-amber-400 active:scale-[0.99] transition">暂停</button>
+          <button id="resetTimerBtn" class="flex-1 rounded-xl bg-slate-600 text-white px-3 py-2 font-medium hover:bg-slate-500 active:scale-[0.99] transition">重置</button>
+        </div>
+      </section>
+    </header>
+
+    <main class="grid lg:grid-cols-3 gap-6">
+      <section class="lg:col-span-1 bg-white/90 rounded-2xl shadow-md border border-slate-200 p-4 sm:p-5 h-fit">
+        <h2 class="text-lg font-semibold mb-4">添加单词</h2>
+
+        <div class="space-y-3 mb-6">
+          <label class="block text-sm">
+            <span class="block mb-1 text-slate-600">英文单词</span>
+            <input id="singleWordInput" type="text" placeholder="例如: apple" class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </label>
+          <label class="block text-sm">
+            <span class="block mb-1 text-slate-600">中文释义</span>
+            <input id="singleMeaningInput" type="text" placeholder="例如: 苹果" class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </label>
+          <button id="addSingleBtn" class="w-full rounded-xl bg-emerald-600 text-white px-4 py-2.5 font-medium hover:bg-emerald-500 active:scale-[0.99] transition">添加单词闪卡</button>
+        </div>
+
+        <div class="border-t border-slate-200 pt-5">
+          <h3 class="text-base font-semibold mb-2">批量导入（每行：英文 中文）</h3>
+          <textarea id="batchInput" rows="8" placeholder="apple 苹果\nbanana 香蕉\nhello 你好" class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y"></textarea>
+          <button id="addBatchBtn" class="mt-3 w-full rounded-xl bg-indigo-600 text-white px-4 py-2.5 font-medium hover:bg-indigo-500 active:scale-[0.99] transition">批量生成闪卡</button>
+          <p id="inputFeedback" class="text-sm mt-2 text-slate-500 min-h-[1.25rem]"></p>
+        </div>
+      </section>
+
+      <section class="lg:col-span-2 bg-white/80 rounded-2xl shadow-md border border-slate-200 p-4 sm:p-5">
+        <div class="flex items-center justify-between mb-4 gap-2">
+          <h2 class="text-lg font-semibold">闪卡列表</h2>
+          <span id="cardCount" class="text-sm text-slate-600 bg-slate-100 rounded-full px-3 py-1">共 0 张</span>
+        </div>
+        <div id="cardsContainer" class="custom-scrollbar max-h-[65vh] overflow-auto pr-1">
+          <div id="cardsGrid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+          <p id="emptyState" class="text-center text-slate-500 py-16">还没有闪卡，先在左侧添加一些单词吧。</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="cardTemplate">
+    <article class="perspective h-40 sm:h-44">
+      <div class="flashcard relative h-full rounded-2xl shadow-sm border border-slate-200">
+        <div class="card-face absolute inset-0 rounded-2xl bg-white flex items-center justify-center p-4">
+          <p class="front-word text-2xl font-bold tracking-wide text-indigo-700 text-center break-words"></p>
+        </div>
+        <div class="card-face card-back absolute inset-0 rounded-2xl bg-indigo-600 text-white flex flex-col items-center justify-center p-4 gap-2">
+          <p class="back-word text-xl font-semibold tracking-wide text-center break-words"></p>
+          <p class="back-meaning text-base text-indigo-100 text-center break-words"></p>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script>
+    const singleWordInput = document.getElementById('singleWordInput');
+    const singleMeaningInput = document.getElementById('singleMeaningInput');
+    const addSingleBtn = document.getElementById('addSingleBtn');
+    const batchInput = document.getElementById('batchInput');
+    const addBatchBtn = document.getElementById('addBatchBtn');
+    const inputFeedback = document.getElementById('inputFeedback');
+
+    const cardsGrid = document.getElementById('cardsGrid');
+    const emptyState = document.getElementById('emptyState');
+    const cardCount = document.getElementById('cardCount');
+    const cardTemplate = document.getElementById('cardTemplate');
+
+    const minutesInput = document.getElementById('minutesInput');
+    const secondsInput = document.getElementById('secondsInput');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const startTimerBtn = document.getElementById('startTimerBtn');
+    const pauseTimerBtn = document.getElementById('pauseTimerBtn');
+    const resetTimerBtn = document.getElementById('resetTimerBtn');
+
+    const flashcards = [];
+
+    let timerInterval = null;
+    let flashInterval = null;
+    let remainingSeconds = 0;
+
+    function sanitize(text) {
+      return text.trim().replace(/\s+/g, ' ');
+    }
+
+    function updateCardCounter() {
+      cardCount.textContent = `共 ${flashcards.length} 张`;
+      emptyState.classList.toggle('hidden', flashcards.length > 0);
+    }
+
+    function createCard(word, meaning) {
+      const node = cardTemplate.content.firstElementChild.cloneNode(true);
+      const flipElement = node.querySelector('.flashcard');
+
+      node.querySelector('.front-word').textContent = word;
+      node.querySelector('.back-word').textContent = word;
+      node.querySelector('.back-meaning').textContent = meaning;
+
+      flipElement.addEventListener('click', () => {
+        flipElement.classList.toggle('flipped');
+      });
+
+      cardsGrid.appendChild(node);
+      flashcards.push({ word, meaning });
+      updateCardCounter();
+    }
+
+    function showFeedback(message, isError = false) {
+      inputFeedback.textContent = message;
+      inputFeedback.className = `text-sm mt-2 min-h-[1.25rem] ${isError ? 'text-rose-600' : 'text-emerald-600'}`;
+    }
+
+    function addSingleCard() {
+      const word = sanitize(singleWordInput.value);
+      const meaning = sanitize(singleMeaningInput.value);
+
+      if (!word || !meaning) {
+        showFeedback('请完整填写英文单词和中文释义。', true);
+        return;
+      }
+
+      createCard(word, meaning);
+      singleWordInput.value = '';
+      singleMeaningInput.value = '';
+      showFeedback(`已添加：${word} - ${meaning}`);
+    }
+
+    function parseBatchLine(line) {
+      const cleaned = line.trim();
+      if (!cleaned) return null;
+
+      const match = cleaned.match(/^(\S+)\s+(.+)$/);
+      if (!match) return { invalid: true, line: cleaned };
+
+      return {
+        word: sanitize(match[1]),
+        meaning: sanitize(match[2])
+      };
+    }
+
+    function addBatchCards() {
+      const text = batchInput.value;
+      if (!text.trim()) {
+        showFeedback('请先输入批量内容后再导入。', true);
+        return;
+      }
+
+      const lines = text.split(/\n+/);
+      let added = 0;
+      let invalidCount = 0;
+
+      lines.forEach((line) => {
+        const parsed = parseBatchLine(line);
+        if (!parsed) return;
+        if (parsed.invalid || !parsed.word || !parsed.meaning) {
+          invalidCount += 1;
+          return;
+        }
+
+        createCard(parsed.word, parsed.meaning);
+        added += 1;
+      });
+
+      if (added > 0) {
+        batchInput.value = '';
+      }
+
+      if (added === 0) {
+        showFeedback('没有识别到有效格式。请使用“英文 中文”每行一组。', true);
+      } else if (invalidCount > 0) {
+        showFeedback(`成功导入 ${added} 组，忽略 ${invalidCount} 行无效格式。`);
+      } else {
+        showFeedback(`成功导入 ${added} 组单词。`);
+      }
+    }
+
+    function formatTime(totalSeconds) {
+      const safe = Math.max(0, totalSeconds);
+      const m = String(Math.floor(safe / 60)).padStart(2, '0');
+      const s = String(safe % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function clearFlashing() {
+      if (flashInterval) {
+        clearInterval(flashInterval);
+        flashInterval = null;
+      }
+      document.body.classList.remove('flash-warning-a', 'flash-warning-b');
+    }
+
+    function startFlashingWarning() {
+      if (flashInterval) return;
+
+      let toggle = false;
+      flashInterval = setInterval(() => {
+        document.body.classList.toggle('flash-warning-a', !toggle);
+        document.body.classList.toggle('flash-warning-b', toggle);
+        toggle = !toggle;
+      }, 350);
+    }
+
+    function syncDisplay() {
+      timerDisplay.textContent = formatTime(remainingSeconds);
+
+      if (remainingSeconds > 0 && remainingSeconds <= 10) {
+        startFlashingWarning();
+      } else {
+        clearFlashing();
+      }
+    }
+
+    function startTimer() {
+      const minutes = Number(minutesInput.value || 0);
+      const seconds = Number(secondsInput.value || 0);
+
+      if (!timerInterval) {
+        if (remainingSeconds <= 0) {
+          if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || minutes < 0 || seconds < 0) {
+            alert('请输入有效的分钟和秒数。');
+            return;
+          }
+          remainingSeconds = Math.floor(minutes * 60 + seconds);
+        }
+
+        if (remainingSeconds <= 0) {
+          alert('请设置大于 0 的倒计时时间。');
+          return;
+        }
+
+        syncDisplay();
+
+        timerInterval = setInterval(() => {
+          remainingSeconds -= 1;
+          syncDisplay();
+
+          if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            clearFlashing();
+            timerDisplay.textContent = '00:00';
+            alert('学习倒计时结束！');
+          }
+        }, 1000);
+      }
+    }
+
+    function pauseTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      remainingSeconds = 0;
+      syncDisplay();
+    }
+
+    addSingleBtn.addEventListener('click', addSingleCard);
+    addBatchBtn.addEventListener('click', addBatchCards);
+    startTimerBtn.addEventListener('click', startTimer);
+    pauseTimerBtn.addEventListener('click', pauseTimer);
+    resetTimerBtn.addEventListener('click', resetTimer);
+
+    singleMeaningInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        addSingleCard();
+      }
+    });
+
+    singleWordInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        singleMeaningInput.focus();
+      }
+    });
+
+    [minutesInput, secondsInput].forEach((input) => {
+      input.addEventListener('change', () => {
+        const min = input === minutesInput ? 0 : 0;
+        const max = input === minutesInput ? 999 : 59;
+        let value = Number(input.value);
+
+        if (!Number.isFinite(value)) value = 0;
+        value = Math.max(min, Math.min(max, Math.floor(value)));
+        input.value = String(value);
+      });
+    });
+
+    updateCardCounter();
+    syncDisplay();
+  </script>
+</body>
+</html>
