@@ -78,7 +78,8 @@
     }
 
     body.focus-mode #pageTitleBlock,
-    body.focus-mode #inputPanel {
+    body.focus-mode #inputPanel,
+    body.focus-mode #flashcardsPanel {
       display: none;
     }
 
@@ -110,15 +111,18 @@
 
     body.focus-mode #contentMain {
       display: block;
-      margin-top: 0.5rem;
+      margin-top: 0;
     }
 
-    body.focus-mode #flashcardsPanel {
+    #studyPanel {
+      display: none;
+    }
+
+    body.focus-mode #studyPanel {
+      display: flex;
       min-height: calc(100vh - 2rem);
-    }
-
-    body.focus-mode #cardsContainer {
-      max-height: calc(100vh - 8rem);
+      align-items: center;
+      justify-content: center;
     }
   </style>
 </head>
@@ -176,20 +180,39 @@
       </section>
 
       <section id="flashcardsPanel" class="lg:col-span-2 bg-white/80 rounded-2xl shadow-md border border-slate-200 p-4 sm:p-5">
-        <div class="flex items-center justify-between mb-4 gap-2">
+        <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
           <h2 class="text-lg font-semibold">闪卡列表</h2>
-          <span id="cardCount" class="text-sm text-slate-600 bg-slate-100 rounded-full px-3 py-1">共 0 张</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="selectAllBtn" class="rounded-lg bg-slate-200 text-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-300 transition">全选</button>
+            <button id="deleteSelectedBtn" class="rounded-lg bg-rose-500 text-white px-3 py-1.5 text-sm font-medium hover:bg-rose-400 transition">删除选中</button>
+            <button id="deleteAllBtn" class="rounded-lg bg-rose-700 text-white px-3 py-1.5 text-sm font-medium hover:bg-rose-600 transition">清空全部</button>
+            <span id="cardCount" class="text-sm text-slate-600 bg-slate-100 rounded-full px-3 py-1">共 0 张</span>
+          </div>
         </div>
         <div id="cardsContainer" class="custom-scrollbar max-h-[65vh] overflow-auto pr-1">
           <div id="cardsGrid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
           <p id="emptyState" class="text-center text-slate-500 py-16">还没有闪卡，先在左侧添加一些单词吧。</p>
         </div>
       </section>
+
+      <section id="studyPanel" class="lg:col-span-3">
+        <div class="w-full max-w-5xl mx-auto">
+          <div class="text-center mb-4">
+            <p id="studyProgress" class="text-slate-700 font-medium">第 0 / 0 张</p>
+            <p class="text-slate-500 text-sm mt-1">点击卡片反转，1 秒后自动进入下一张。</p>
+          </div>
+          <div id="studyCardHost" class="mx-auto w-full max-w-4xl"></div>
+        </div>
+      </section>
     </main>
   </div>
 
   <template id="cardTemplate">
-    <article class="perspective h-40 sm:h-44">
+    <article class="perspective relative h-44 sm:h-48">
+      <label class="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-xs text-slate-600 shadow">
+        <input type="checkbox" class="card-select" />
+        选中
+      </label>
       <div class="flashcard relative h-full rounded-2xl shadow-sm border border-slate-200">
         <div class="card-face absolute inset-0 rounded-2xl bg-white flex items-center justify-center p-4">
           <p class="front-word text-2xl font-bold tracking-wide text-indigo-700 text-center break-words"></p>
@@ -214,6 +237,11 @@
     const emptyState = document.getElementById('emptyState');
     const cardCount = document.getElementById('cardCount');
     const cardTemplate = document.getElementById('cardTemplate');
+    const studyCardHost = document.getElementById('studyCardHost');
+    const studyProgress = document.getElementById('studyProgress');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
 
     const minutesInput = document.getElementById('minutesInput');
     const secondsInput = document.getElementById('secondsInput');
@@ -228,6 +256,8 @@
     let flashInterval = null;
     let remainingSeconds = 0;
     let isFocusMode = false;
+    let currentStudyIndex = 0;
+    let isAutoAdvancing = false;
 
     function sanitize(text) {
       return text.trim().replace(/\s+/g, ' ');
@@ -238,21 +268,85 @@
       emptyState.classList.toggle('hidden', flashcards.length > 0);
     }
 
-    function createCard(word, meaning) {
-      const node = cardTemplate.content.firstElementChild.cloneNode(true);
-      const flipElement = node.querySelector('.flashcard');
+    function renderCardsGrid() {
+      cardsGrid.innerHTML = '';
 
-      node.querySelector('.front-word').textContent = word;
-      node.querySelector('.back-word').textContent = word;
-      node.querySelector('.back-meaning').textContent = meaning;
+      flashcards.forEach((card, index) => {
+        const node = cardTemplate.content.firstElementChild.cloneNode(true);
+        const flipElement = node.querySelector('.flashcard');
+        const checkbox = node.querySelector('.card-select');
 
-      flipElement.addEventListener('click', () => {
-        flipElement.classList.toggle('flipped');
+        node.querySelector('.front-word').textContent = card.word;
+        node.querySelector('.back-word').textContent = card.word;
+        node.querySelector('.back-meaning').textContent = card.meaning;
+        checkbox.dataset.index = String(index);
+
+        flipElement.addEventListener('click', () => {
+          flipElement.classList.toggle('flipped');
+        });
+
+        cardsGrid.appendChild(node);
+      });
+    }
+
+    function renderStudyCard() {
+      if (!isFocusMode) return;
+
+      if (flashcards.length === 0) {
+        studyCardHost.innerHTML = '<p class="text-center text-slate-500 py-16">没有可学习的闪卡，请先添加单词。</p>';
+        studyProgress.textContent = '第 0 / 0 张';
+        return;
+      }
+
+      if (currentStudyIndex >= flashcards.length) {
+        currentStudyIndex = 0;
+      }
+
+      const current = flashcards[currentStudyIndex];
+      const wrapper = document.createElement('article');
+      wrapper.className = 'perspective h-[68vh] min-h-[360px] max-h-[760px]';
+
+      const studyNode = document.createElement('div');
+      studyNode.className = 'flashcard relative h-full rounded-3xl shadow-lg border border-slate-200';
+      studyNode.innerHTML = `
+        <div class="card-face absolute inset-0 rounded-3xl bg-white flex items-center justify-center p-8">
+          <p class="study-front text-5xl sm:text-6xl font-bold tracking-wide text-indigo-700 text-center break-words"></p>
+        </div>
+        <div class="card-face card-back absolute inset-0 rounded-3xl bg-indigo-600 text-white flex flex-col items-center justify-center p-8 gap-5">
+          <p class="study-back-word text-4xl sm:text-5xl font-semibold tracking-wide text-center break-words"></p>
+          <p class="study-back-meaning text-3xl text-indigo-100 text-center break-words"></p>
+        </div>
+      `;
+      studyNode.querySelector('.study-front').textContent = current.word;
+      studyNode.querySelector('.study-back-word').textContent = current.word;
+      studyNode.querySelector('.study-back-meaning').textContent = current.meaning;
+      wrapper.appendChild(studyNode);
+
+      const studyCard = wrapper.querySelector('.flashcard');
+      studyCard.addEventListener('click', () => {
+        if (isAutoAdvancing) return;
+        isAutoAdvancing = true;
+        studyCard.classList.add('flipped');
+
+        setTimeout(() => {
+          if (flashcards.length > 0) {
+            currentStudyIndex = (currentStudyIndex + 1) % flashcards.length;
+            renderStudyCard();
+          }
+          isAutoAdvancing = false;
+        }, 1000);
       });
 
-      cardsGrid.appendChild(node);
+      studyCardHost.innerHTML = '';
+      studyCardHost.appendChild(wrapper);
+      studyProgress.textContent = `第 ${currentStudyIndex + 1} / ${flashcards.length} 张`;
+    }
+
+    function createCard(word, meaning) {
       flashcards.push({ word, meaning });
+      renderCardsGrid();
       updateCardCounter();
+      renderStudyCard();
     }
 
     function showFeedback(message, isError = false) {
@@ -324,6 +418,49 @@
       }
     }
 
+    function selectAllCards() {
+      cardsGrid.querySelectorAll('.card-select').forEach((checkbox) => {
+        checkbox.checked = true;
+      });
+    }
+
+    function deleteSelectedCards() {
+      const selected = [...cardsGrid.querySelectorAll('.card-select:checked')]
+        .map((item) => Number(item.dataset.index))
+        .filter((idx) => Number.isInteger(idx));
+
+      if (selected.length === 0) {
+        showFeedback('请先勾选要删除的闪卡。', true);
+        return;
+      }
+
+      const selectedSet = new Set(selected);
+      const remaining = flashcards.filter((_, index) => !selectedSet.has(index));
+
+      flashcards.length = 0;
+      flashcards.push(...remaining);
+      currentStudyIndex = Math.min(currentStudyIndex, Math.max(0, flashcards.length - 1));
+
+      renderCardsGrid();
+      updateCardCounter();
+      renderStudyCard();
+      showFeedback(`已删除 ${selected.length} 张闪卡。`);
+    }
+
+    function deleteAllCards() {
+      if (flashcards.length === 0) {
+        showFeedback('当前没有可删除的闪卡。', true);
+        return;
+      }
+
+      flashcards.length = 0;
+      currentStudyIndex = 0;
+      renderCardsGrid();
+      updateCardCounter();
+      renderStudyCard();
+      showFeedback('已清空全部闪卡。');
+    }
+
     function formatTime(totalSeconds) {
       const safe = Math.max(0, totalSeconds);
       const m = String(Math.floor(safe / 60)).padStart(2, '0');
@@ -370,6 +507,9 @@
       if (!isFocusMode) return;
       document.body.classList.remove('focus-mode');
       isFocusMode = false;
+      isAutoAdvancing = false;
+      studyCardHost.innerHTML = '';
+      studyProgress.textContent = `第 0 / ${flashcards.length} 张`;
     }
 
     function startTimer() {
@@ -390,7 +530,14 @@
           return;
         }
 
+        if (flashcards.length === 0) {
+          alert('请先添加至少一张闪卡再开始学习。');
+          return;
+        }
+
+        currentStudyIndex = 0;
         enterFocusMode();
+        renderStudyCard();
         syncDisplay();
 
         timerInterval = setInterval(() => {
@@ -425,6 +572,9 @@
 
     addSingleBtn.addEventListener('click', addSingleCard);
     addBatchBtn.addEventListener('click', addBatchCards);
+    selectAllBtn.addEventListener('click', selectAllCards);
+    deleteSelectedBtn.addEventListener('click', deleteSelectedCards);
+    deleteAllBtn.addEventListener('click', deleteAllCards);
     startTimerBtn.addEventListener('click', startTimer);
     pauseTimerBtn.addEventListener('click', pauseTimer);
     resetTimerBtn.addEventListener('click', resetTimer);
@@ -454,6 +604,8 @@
     });
 
     updateCardCounter();
+    renderCardsGrid();
+    studyProgress.textContent = '第 0 / 0 张';
     syncDisplay();
   </script>
 </body>
