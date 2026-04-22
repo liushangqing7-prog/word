@@ -178,7 +178,6 @@
         <div id="timerDisplay" class="text-3xl font-bold text-center py-3 rounded-xl bg-indigo-50 text-indigo-700 mb-3">00:00</div>
         <div id="timerButtons" class="flex gap-2">
           <button id="startTimerBtn" class="flex-1 rounded-xl bg-indigo-600 text-white px-3 py-2 font-medium hover:bg-indigo-500 active:scale-[0.99] transition">开始</button>
-          <button id="pauseTimerBtn" class="flex-1 rounded-xl bg-amber-500 text-white px-3 py-2 font-medium hover:bg-amber-400 active:scale-[0.99] transition">暂停</button>
           <button id="resetTimerBtn" class="flex-1 rounded-xl bg-slate-600 text-white px-3 py-2 font-medium hover:bg-slate-500 active:scale-[0.99] transition">重置</button>
         </div>
         <button id="forceExitBtn" class="w-full rounded-xl bg-rose-600 text-white px-3 py-2 font-medium hover:bg-rose-500 active:scale-[0.99] transition">强制退出学习</button>
@@ -282,7 +281,6 @@
     const warningSecondsInput = document.getElementById('warningSecondsInput');
     const timerDisplay = document.getElementById('timerDisplay');
     const startTimerBtn = document.getElementById('startTimerBtn');
-    const pauseTimerBtn = document.getElementById('pauseTimerBtn');
     const resetTimerBtn = document.getElementById('resetTimerBtn');
     const forceExitBtn = document.getElementById('forceExitBtn');
 
@@ -660,7 +658,7 @@
       }
     }
 
-    function pauseTimer() {
+    function stopTimer() {
       if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
@@ -668,15 +666,24 @@
     }
 
     function resetTimer() {
-      pauseTimer();
-      remainingSeconds = 0;
+      const minutes = Number(minutesInput.value || 0);
+      const seconds = Number(secondsInput.value || 0);
+
+      if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || minutes < 0 || seconds < 0) {
+        alert('请输入有效的分钟和秒数。');
+        return;
+      }
+
+      stopTimer();
+      remainingSeconds = Math.floor(minutes * 60 + seconds);
+      clearFlashing();
       syncDisplay();
       exitFocusMode();
     }
 
     function forceExitStudy() {
       if (!isFocusMode || remainingSeconds <= 0) return;
-      pauseTimer();
+      stopTimer();
       remainingSeconds = 0;
       syncDisplay();
       exitFocusMode();
@@ -691,7 +698,6 @@
     deleteSelectedBtn.addEventListener('click', deleteSelectedCards);
     deleteAllBtn.addEventListener('click', deleteAllCards);
     startTimerBtn.addEventListener('click', startTimer);
-    pauseTimerBtn.addEventListener('click', pauseTimer);
     resetTimerBtn.addEventListener('click', resetTimer);
     forceExitBtn.addEventListener('click', forceExitStudy);
 
