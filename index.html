@@ -666,16 +666,12 @@
     }
 
     function resetTimer() {
-      const minutes = Number(minutesInput.value || 0);
-      const seconds = Number(secondsInput.value || 0);
-
-      if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || minutes < 0 || seconds < 0) {
-        alert('请输入有效的分钟和秒数。');
-        return;
-      }
-
       stopTimer();
-      remainingSeconds = Math.floor(minutes * 60 + seconds);
+      minutesInput.value = '0';
+      secondsInput.value = '0';
+      warningSecondsInput.value = '10';
+      warningThresholdSeconds = 10;
+      remainingSeconds = 0;
       clearFlashing();
       syncDisplay();
       exitFocusMode();
@@ -713,28 +709,45 @@
       }
     });
 
-    [minutesInput, secondsInput, warningSecondsInput].forEach((input) => {
-      input.addEventListener('change', () => {
-        const min = input === warningSecondsInput ? 1 : 0;
-        const max = input === minutesInput ? 999 : input === warningSecondsInput ? 600 : 59;
-        let value = Number(input.value);
+    function normalizeTimerInput(input) {
+      const min = input === warningSecondsInput ? 1 : 0;
+      const max = input === minutesInput ? 999 : input === warningSecondsInput ? 600 : 59;
+      let value = Number(input.value);
 
-        if (!Number.isFinite(value)) value = min;
-        value = Math.max(min, Math.min(max, Math.floor(value)));
-        input.value = String(value);
-      });
+      if (!Number.isFinite(value)) value = min;
+      value = Math.max(min, Math.min(max, Math.floor(value)));
+      input.value = String(value);
+      return value;
+    }
+
+    function syncRemainingFromInputs() {
+      if (timerInterval) return;
+      const minutes = normalizeTimerInput(minutesInput);
+      const seconds = normalizeTimerInput(secondsInput);
+      remainingSeconds = minutes * 60 + seconds;
+      syncDisplay();
+    }
+
+    [minutesInput, secondsInput].forEach((input) => {
+      input.addEventListener('input', syncRemainingFromInputs);
+      input.addEventListener('change', syncRemainingFromInputs);
+    });
+
+    warningSecondsInput.addEventListener('input', () => {
+      warningThresholdSeconds = normalizeTimerInput(warningSecondsInput);
+      syncDisplay();
     });
 
     warningSecondsInput.addEventListener('change', () => {
-      warningThresholdSeconds = Number(warningSecondsInput.value);
+      warningThresholdSeconds = normalizeTimerInput(warningSecondsInput);
       syncDisplay();
     });
 
     updateCardCounter();
     renderCardsGrid();
     studyProgress.textContent = '第 0 / 0 张';
-    warningThresholdSeconds = Number(warningSecondsInput.value) || 10;
-    syncDisplay();
+    warningThresholdSeconds = normalizeTimerInput(warningSecondsInput);
+    syncRemainingFromInputs();
   </script>
 </body>
 </html>
