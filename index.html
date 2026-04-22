@@ -211,6 +211,7 @@
           <div class="flex flex-wrap items-center gap-2">
             <button id="toggleSelectionBtn" class="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-indigo-500 transition">开始选择</button>
             <button id="selectAllBtn" class="selection-only rounded-lg bg-slate-200 text-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-300 transition">全选</button>
+            <button id="clearSelectionBtn" class="selection-only rounded-lg bg-slate-200 text-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-300 transition">取消选择</button>
             <button id="deleteSelectedBtn" class="selection-only rounded-lg bg-rose-500 text-white px-3 py-1.5 text-sm font-medium hover:bg-rose-400 transition">删除选中</button>
             <button id="deleteAllBtn" class="rounded-lg bg-rose-700 text-white px-3 py-1.5 text-sm font-medium hover:bg-rose-600 transition">清空全部</button>
             <span id="cardCount" class="text-sm text-slate-600 bg-slate-100 rounded-full px-3 py-1">共 0 张</span>
@@ -268,6 +269,7 @@
     const studyProgress = document.getElementById('studyProgress');
     const toggleSelectionBtn = document.getElementById('toggleSelectionBtn');
     const selectAllBtn = document.getElementById('selectAllBtn');
+    const clearSelectionBtn = document.getElementById('clearSelectionBtn');
     const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
     const deleteAllBtn = document.getElementById('deleteAllBtn');
 
@@ -306,7 +308,10 @@
         const node = cardTemplate.content.firstElementChild.cloneNode(true);
         const flipElement = node.querySelector('.flashcard');
         const checkbox = node.querySelector('.card-select');
+        const selectionLabel = node.querySelector('.selection-label');
         node.draggable = isSelectionMode;
+        checkbox.disabled = !isSelectionMode;
+        selectionLabel.style.display = isSelectionMode ? 'inline-flex' : 'none';
 
         node.querySelector('.front-word').textContent = card.word;
         node.querySelector('.back-word').textContent = card.word;
@@ -503,6 +508,16 @@
       });
     }
 
+    function clearSelectedCards() {
+      if (!isSelectionMode) {
+        showFeedback('请先点击“开始选择”。', true);
+        return;
+      }
+      cardsGrid.querySelectorAll('.card-select').forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+    }
+
     function deleteSelectedCards() {
       if (!isSelectionMode) {
         showFeedback('请先点击“开始选择”。', true);
@@ -666,6 +681,7 @@
     addBatchBtn.addEventListener('click', addBatchCards);
     toggleSelectionBtn.addEventListener('click', () => setSelectionMode(!isSelectionMode));
     selectAllBtn.addEventListener('click', selectAllCards);
+    clearSelectionBtn.addEventListener('click', clearSelectedCards);
     deleteSelectedBtn.addEventListener('click', deleteSelectedCards);
     deleteAllBtn.addEventListener('click', deleteAllCards);
     startTimerBtn.addEventListener('click', startTimer);
