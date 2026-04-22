@@ -161,7 +161,7 @@
 
       <section id="timerPanel" class="w-full md:w-[320px] bg-white/90 backdrop-blur rounded-2xl shadow-md border border-slate-200 p-4">
         <h2 class="text-lg font-semibold mb-3">学习倒计时</h2>
-        <div id="timerInputs" class="grid grid-cols-2 gap-3 mb-3">
+        <div id="timerInputs" class="grid grid-cols-3 gap-3 mb-3">
           <label class="text-sm">
             <span class="block mb-1 text-slate-600">分钟</span>
             <input id="minutesInput" type="number" min="0" max="999" value="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
@@ -169,6 +169,10 @@
           <label class="text-sm">
             <span class="block mb-1 text-slate-600">秒</span>
             <input id="secondsInput" type="number" min="0" max="59" value="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </label>
+          <label class="text-sm">
+            <span class="block mb-1 text-slate-600">警示阈值(秒)</span>
+            <input id="warningSecondsInput" type="number" min="1" max="600" value="10" class="w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
           </label>
         </div>
         <div id="timerDisplay" class="text-3xl font-bold text-center py-3 rounded-xl bg-indigo-50 text-indigo-700 mb-3">00:00</div>
@@ -275,6 +279,7 @@
 
     const minutesInput = document.getElementById('minutesInput');
     const secondsInput = document.getElementById('secondsInput');
+    const warningSecondsInput = document.getElementById('warningSecondsInput');
     const timerDisplay = document.getElementById('timerDisplay');
     const startTimerBtn = document.getElementById('startTimerBtn');
     const pauseTimerBtn = document.getElementById('pauseTimerBtn');
@@ -291,6 +296,7 @@
     let currentStudyIndex = 0;
     let isAutoAdvancing = false;
     let dragSourceIndex = null;
+    let warningThresholdSeconds = 10;
 
     function sanitize(text) {
       return text.trim().replace(/\s+/g, ' ');
@@ -588,7 +594,7 @@
     function syncDisplay() {
       timerDisplay.textContent = formatTime(remainingSeconds);
 
-      if (remainingSeconds > 0 && remainingSeconds <= 10) {
+      if (remainingSeconds > 0 && remainingSeconds <= warningThresholdSeconds) {
         startFlashingWarning();
       } else {
         clearFlashing();
@@ -701,21 +707,27 @@
       }
     });
 
-    [minutesInput, secondsInput].forEach((input) => {
+    [minutesInput, secondsInput, warningSecondsInput].forEach((input) => {
       input.addEventListener('change', () => {
-        const min = input === minutesInput ? 0 : 0;
-        const max = input === minutesInput ? 999 : 59;
+        const min = input === warningSecondsInput ? 1 : 0;
+        const max = input === minutesInput ? 999 : input === warningSecondsInput ? 600 : 59;
         let value = Number(input.value);
 
-        if (!Number.isFinite(value)) value = 0;
+        if (!Number.isFinite(value)) value = min;
         value = Math.max(min, Math.min(max, Math.floor(value)));
         input.value = String(value);
       });
     });
 
+    warningSecondsInput.addEventListener('change', () => {
+      warningThresholdSeconds = Number(warningSecondsInput.value);
+      syncDisplay();
+    });
+
     updateCardCounter();
     renderCardsGrid();
     studyProgress.textContent = '第 0 / 0 张';
+    warningThresholdSeconds = Number(warningSecondsInput.value) || 10;
     syncDisplay();
   </script>
 </body>
