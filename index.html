@@ -102,6 +102,31 @@
       display: none;
     }
 
+    #forceExitBtn {
+      display: none;
+    }
+
+    body.focus-mode #forceExitBtn {
+      display: block;
+      margin-top: 0.5rem;
+    }
+
+    .selection-label {
+      display: none;
+    }
+
+    body.selection-mode .selection-label {
+      display: inline-flex;
+    }
+
+    .selection-only {
+      display: none;
+    }
+
+    body.selection-mode .selection-only {
+      display: inline-flex;
+    }
+
     body.focus-mode #timerDisplay {
       margin: 0;
       padding: 0.35rem 0.75rem;
@@ -152,6 +177,7 @@
           <button id="pauseTimerBtn" class="flex-1 rounded-xl bg-amber-500 text-white px-3 py-2 font-medium hover:bg-amber-400 active:scale-[0.99] transition">暂停</button>
           <button id="resetTimerBtn" class="flex-1 rounded-xl bg-slate-600 text-white px-3 py-2 font-medium hover:bg-slate-500 active:scale-[0.99] transition">重置</button>
         </div>
+        <button id="forceExitBtn" class="w-full rounded-xl bg-rose-600 text-white px-3 py-2 font-medium hover:bg-rose-500 active:scale-[0.99] transition">强制退出学习</button>
       </section>
     </header>
 
@@ -183,8 +209,9 @@
         <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
           <h2 class="text-lg font-semibold">闪卡列表</h2>
           <div class="flex flex-wrap items-center gap-2">
-            <button id="selectAllBtn" class="rounded-lg bg-slate-200 text-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-300 transition">全选</button>
-            <button id="deleteSelectedBtn" class="rounded-lg bg-rose-500 text-white px-3 py-1.5 text-sm font-medium hover:bg-rose-400 transition">删除选中</button>
+            <button id="toggleSelectionBtn" class="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-indigo-500 transition">开始选择</button>
+            <button id="selectAllBtn" class="selection-only rounded-lg bg-slate-200 text-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-300 transition">全选</button>
+            <button id="deleteSelectedBtn" class="selection-only rounded-lg bg-rose-500 text-white px-3 py-1.5 text-sm font-medium hover:bg-rose-400 transition">删除选中</button>
             <button id="deleteAllBtn" class="rounded-lg bg-rose-700 text-white px-3 py-1.5 text-sm font-medium hover:bg-rose-600 transition">清空全部</button>
             <span id="cardCount" class="text-sm text-slate-600 bg-slate-100 rounded-full px-3 py-1">共 0 张</span>
           </div>
@@ -209,7 +236,7 @@
 
   <template id="cardTemplate">
     <article class="perspective relative h-44 sm:h-48">
-      <label class="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-xs text-slate-600 shadow">
+      <label class="selection-label absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-xs text-slate-600 shadow">
         <input type="checkbox" class="card-select" />
         选中
       </label>
@@ -239,6 +266,7 @@
     const cardTemplate = document.getElementById('cardTemplate');
     const studyCardHost = document.getElementById('studyCardHost');
     const studyProgress = document.getElementById('studyProgress');
+    const toggleSelectionBtn = document.getElementById('toggleSelectionBtn');
     const selectAllBtn = document.getElementById('selectAllBtn');
     const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
     const deleteAllBtn = document.getElementById('deleteAllBtn');
@@ -249,6 +277,7 @@
     const startTimerBtn = document.getElementById('startTimerBtn');
     const pauseTimerBtn = document.getElementById('pauseTimerBtn');
     const resetTimerBtn = document.getElementById('resetTimerBtn');
+    const forceExitBtn = document.getElementById('forceExitBtn');
 
     const flashcards = [];
 
@@ -256,8 +285,10 @@
     let flashInterval = null;
     let remainingSeconds = 0;
     let isFocusMode = false;
+    let isSelectionMode = false;
     let currentStudyIndex = 0;
     let isAutoAdvancing = false;
+    let dragSourceIndex = null;
 
     function sanitize(text) {
       return text.trim().replace(/\s+/g, ' ');
@@ -275,6 +306,7 @@
         const node = cardTemplate.content.firstElementChild.cloneNode(true);
         const flipElement = node.querySelector('.flashcard');
         const checkbox = node.querySelector('.card-select');
+        node.draggable = isSelectionMode;
 
         node.querySelector('.front-word').textContent = card.word;
         node.querySelector('.back-word').textContent = card.word;
@@ -282,11 +314,54 @@
         checkbox.dataset.index = String(index);
 
         flipElement.addEventListener('click', () => {
+          if (isSelectionMode) return;
           flipElement.classList.toggle('flipped');
         });
 
+        if (isSelectionMode) {
+          node.addEventListener('dragstart', (event) => {
+            dragSourceIndex = index;
+            event.dataTransfer.effectAllowed = 'move';
+          });
+
+          node.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+          });
+
+          node.addEventListener('drop', (event) => {
+            event.preventDefault();
+            moveCard(dragSourceIndex, index);
+          });
+
+          node.addEventListener('dragend', () => {
+            dragSourceIndex = null;
+          });
+        }
+
         cardsGrid.appendChild(node);
       });
+    }
+
+    function setSelectionMode(enabled) {
+      isSelectionMode = enabled;
+      document.body.classList.toggle('selection-mode', enabled);
+      toggleSelectionBtn.textContent = enabled ? '完成选择' : '开始选择';
+      toggleSelectionBtn.className = enabled
+        ? 'rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-emerald-500 transition'
+        : 'rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-indigo-500 transition';
+      renderCardsGrid();
+    }
+
+    function moveCard(fromIndex, toIndex) {
+      if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex === toIndex) return;
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= flashcards.length || toIndex >= flashcards.length) return;
+
+      const [moved] = flashcards.splice(fromIndex, 1);
+      flashcards.splice(toIndex, 0, moved);
+      dragSourceIndex = null;
+      renderCardsGrid();
+      renderStudyCard();
     }
 
     function renderStudyCard() {
@@ -419,12 +494,20 @@
     }
 
     function selectAllCards() {
+      if (!isSelectionMode) {
+        showFeedback('请先点击“开始选择”。', true);
+        return;
+      }
       cardsGrid.querySelectorAll('.card-select').forEach((checkbox) => {
         checkbox.checked = true;
       });
     }
 
     function deleteSelectedCards() {
+      if (!isSelectionMode) {
+        showFeedback('请先点击“开始选择”。', true);
+        return;
+      }
       const selected = [...cardsGrid.querySelectorAll('.card-select:checked')]
         .map((item) => Number(item.dataset.index))
         .filter((idx) => Number.isInteger(idx));
@@ -570,14 +653,25 @@
       exitFocusMode();
     }
 
+    function forceExitStudy() {
+      if (!isFocusMode || remainingSeconds <= 0) return;
+      pauseTimer();
+      remainingSeconds = 0;
+      syncDisplay();
+      exitFocusMode();
+      showFeedback('已强制退出本次学习。');
+    }
+
     addSingleBtn.addEventListener('click', addSingleCard);
     addBatchBtn.addEventListener('click', addBatchCards);
+    toggleSelectionBtn.addEventListener('click', () => setSelectionMode(!isSelectionMode));
     selectAllBtn.addEventListener('click', selectAllCards);
     deleteSelectedBtn.addEventListener('click', deleteSelectedCards);
     deleteAllBtn.addEventListener('click', deleteAllCards);
     startTimerBtn.addEventListener('click', startTimer);
     pauseTimerBtn.addEventListener('click', pauseTimer);
     resetTimerBtn.addEventListener('click', resetTimer);
+    forceExitBtn.addEventListener('click', forceExitStudy);
 
     singleMeaningInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
